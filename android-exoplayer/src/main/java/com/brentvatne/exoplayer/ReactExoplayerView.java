@@ -471,6 +471,16 @@ class ReactExoplayerView extends FrameLayout implements
     private MediaSource buildMediaSource(Uri uri, String overrideExtension) {
         int type = Util.inferContentType(!TextUtils.isEmpty(overrideExtension) ? "." + overrideExtension
                 : uri.getLastPathSegment());
+
+        if ((type == C.TYPE_OTHER) && (uri.getLastPathSegment().toLowerCase().endsWith("cencm4f.mp4"))) {
+            return new ProgressiveMediaSource.Factory(
+                    mediaDataSourceFactory,
+                    new CustomExtractorsFactory(this.drmPssh, this.drmLicenseUrl, this.drmMimeType)
+            ).setLoadErrorHandlingPolicy(
+                    config.buildLoadErrorHandlingPolicy(minLoadRetryCount)
+            ).createMediaSource(uri);
+        }
+
         switch (type) {
             case C.TYPE_SS:
                 return new SsMediaSource.Factory(

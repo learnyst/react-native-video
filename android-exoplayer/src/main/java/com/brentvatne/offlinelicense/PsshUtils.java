@@ -29,9 +29,6 @@ public class PsshUtils {
         try {
             byte[] wvPsshData = PsshAtomUtil.parseSchemeSpecificData(psshBox, C.WIDEVINE_UUID);
             WidevineCencHeaderProto.WidevineCencHeader psshObj = WidevineCencHeaderProto.WidevineCencHeader.parseFrom(wvPsshData);
-            System.out.println("contentid " + psshObj.getKeyId(0));
-            System.out.println("contentid " + psshObj.getKeyId(0).toString());
-            System.out.println("contentid " + psshObj.getKeyId(0).toStringUtf8());
             byte[] bKeyId = psshObj.getKeyId(0).toByteArray();
             return bytesToHex(bKeyId);
         } catch(Exception e) {
