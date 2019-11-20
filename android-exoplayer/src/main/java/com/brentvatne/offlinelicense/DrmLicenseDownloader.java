@@ -19,6 +19,7 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.drm.DrmInitData;
 import com.google.android.exoplayer2.drm.FrameworkMediaCrypto;
 import com.google.android.exoplayer2.drm.OfflineLicenseHelper;
+import com.google.android.exoplayer2.extractor.mp4.PsshAtomUtil;
 import com.google.android.exoplayer2.source.dash.DashUtil;
 import com.google.android.exoplayer2.source.dash.manifest.DashManifest;
 import com.google.android.exoplayer2.upstream.DataSource;
@@ -50,6 +51,8 @@ public class DrmLicenseDownloader extends ReactContextBaseJavaModule
     private int ERR_INVALID_OFFLINE_LIC_KEYSET_ID = 104;
     private int ERR_SAVING_LICENSE_FAILED = 105;
     private int ERR_DOWNLOAD_LICENSE_EXCEPTION = 106;
+    private int ERR_CONTENTID_MISMATCH = 107;
+    private int ERR_CONTENTID_EXTRACT_FAIL = 108;
 
     public DrmLicenseDownloader(ReactApplicationContext reactContext)
     {
@@ -124,15 +127,11 @@ public class DrmLicenseDownloader extends ReactContextBaseJavaModule
                 mimeType = params.getString("mimeType");
             }
 
-            if (!params.isNull("pssh"))
-            {
-                String pssh = params.getString("pssh");
-                psshData = Base64.decode(pssh, Base64.DEFAULT);
-            }
-
             if (!params.isNull("contentId"))
             {
                 contentId = params.getString("contentId");
+                String pssh = PsshUtils.createWidevinePsshBox(contentId);
+                psshData = Base64.decode(pssh, Base64.DEFAULT);
             }
 
             if (!params.isNull("manifestUrl"))
@@ -141,13 +140,12 @@ public class DrmLicenseDownloader extends ReactContextBaseJavaModule
             }
 
             if (((psshData == null) && (manifestUrl == null))
-                    || ((psshData != null) && (manifestUrl != null))
-                    || ((psshData != null) && ((mimeType == null) || (contentId == null))))
+                    || ((manifestUrl == null) && (mimeType == null)))
             {
                 promise.resolve(constructDownloadLicenseResult(LIC_DOWNLOAD_FAILED,
                         FETCH_TYPE_INVALID,
                         ERR_INVALID_INPUT_PARAMETERS,
-                        "Either pssh+mimetype+contentId or manifestUrl should be present",
+                        "Either mimetype+contentId or manifestUrl should be present",
                         null,
                         contentId,
                         null));
@@ -232,7 +230,31 @@ public class DrmLicenseDownloader extends ReactContextBaseJavaModule
                 //TODO: If contentId is null then get contentID from PSSH and then check whether license is already available
                 // Also validate input content ID with extracted content ID and if mismatch return failure
                 // Always set contentid here when it is null
-                //contentID =
+                String contentIdFromManifest = PsshUtils.getContentIdFromWidevinePsshBox(widevineSchemeData.data);
+
+                if (contentIdFromManifest == null) {
+                    promise.resolve(constructDownloadLicenseResult(LIC_DOWNLOAD_FAILED,
+                            ERR_CONTENTID_EXTRACT_FAIL,
+                            ERR_CONTENTID_MISMATCH,
+                            "Content ID extraction from manifest failed",
+                            null,
+                            contentId,
+                            null));
+                    return;
+                }
+
+                if (contentId != null) {
+                    if (!contentId.toLowerCase().equals(contentIdFromManifest.toLowerCase())) {
+                        promise.resolve(constructDownloadLicenseResult(LIC_DOWNLOAD_FAILED,
+                                FETCH_TYPE_INVALID,
+                                ERR_CONTENTID_MISMATCH,
+                                "Content ID mismatch " + contentIdFromManifest + ":" + contentId,
+                                null,
+                                contentId,
+                                null));
+                        return;
+                    }
+                }
 
                 psshData = widevineSchemeData.data;
                 mimeType = widevineSchemeData.mimeType;

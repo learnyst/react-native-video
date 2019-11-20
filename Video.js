@@ -13,7 +13,8 @@ const styles = StyleSheet.create({
   },
 });
 
-export { TextTrackType, FilterType, DRMType };
+const { DrmLicenseDownloader } = NativeModules;
+export { TextTrackType, FilterType, DRMType, DrmLicenseDownloader };
 
 export default class Video extends Component {
 
