@@ -95,7 +95,7 @@ public final class ExoPlayerView extends FrameLayout {
     private void updateSurfaceView() {
         View view;
         if (useTextureView){
-            view = new TextureView(context)
+            view = new TextureView(context);
         } else {
             view = new SurfaceView(context);
             ((SurfaceView)view).setSecure(true);
