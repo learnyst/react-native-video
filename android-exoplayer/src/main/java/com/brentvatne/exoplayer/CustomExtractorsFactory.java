@@ -7,12 +7,14 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.drm.DrmInitData;
 import com.google.android.exoplayer2.extractor.Extractor;
 import com.google.android.exoplayer2.extractor.ExtractorsFactory;
+import com.google.android.exoplayer2.extractor.SeekMap;
 import com.google.android.exoplayer2.extractor.amr.AmrExtractor;
 import com.google.android.exoplayer2.extractor.flv.FlvExtractor;
 import com.google.android.exoplayer2.extractor.mkv.MatroskaExtractor;
 import com.google.android.exoplayer2.extractor.mp3.Mp3Extractor;
 import com.google.android.exoplayer2.extractor.mp4.FragmentedMp4Extractor;
 import com.google.android.exoplayer2.extractor.mp4.Mp4Extractor;
+import com.google.android.exoplayer2.extractor.mp4.Track;
 import com.google.android.exoplayer2.extractor.ogg.OggExtractor;
 import com.google.android.exoplayer2.extractor.ts.Ac3Extractor;
 import com.google.android.exoplayer2.extractor.ts.Ac4Extractor;
@@ -20,8 +22,11 @@ import com.google.android.exoplayer2.extractor.ts.AdtsExtractor;
 import com.google.android.exoplayer2.extractor.ts.PsExtractor;
 import com.google.android.exoplayer2.extractor.ts.TsExtractor;
 import com.google.android.exoplayer2.extractor.wav.WavExtractor;
+import com.google.android.exoplayer2.util.TimestampAdjuster;
 
 import java.util.ArrayList;
+
+import androidx.annotation.Nullable;
 
 /**
  * An {@link ExtractorsFactory} that provides an array of extractors for the following formats:
@@ -43,6 +48,26 @@ import java.util.ArrayList;
  *   <li>FLAC (only available if the FLAC extension is built and included)
  * </ul>
  */
+//class customFragmentedMp4Extractor extends FragmentedMp4Extractor implements SeekMap {
+//    public customFragmentedMp4Extractor(
+//            @Flags int flags,
+//            @Nullable TimestampAdjuster timestampAdjuster,
+//            @Nullable Track sideloadedTrack,
+//            @Nullable DrmInitData sideloadedDrmInitData) {
+//        super(flags, timestampAdjuster, sideloadedTrack, sideloadedDrmInitData);
+//    }
+//
+//    @Override
+//    public boolean isSeekable() {
+//        return true;
+//    }
+//
+//    @Override
+//    public long getDurationUs() {
+//        return durationUs;
+//    }
+//}
+
 public final class CustomExtractorsFactory implements ExtractorsFactory {
     private String pssh = null;
     private String licenseServerUrl = null;
