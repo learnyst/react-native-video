@@ -16,6 +16,7 @@ import android.view.accessibility.CaptioningManager;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.util.Base64;
 
 import com.brentvatne.react.R;
 import com.brentvatne.receiver.AudioBecomingNoisyReceiver;
@@ -81,6 +82,8 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.Map;
+import java.io.StringWriter;
+import java.io.PrintWriter;
 
 @SuppressLint("ViewConstructor")
 class ReactExoplayerView extends FrameLayout implements
@@ -116,6 +119,7 @@ class ReactExoplayerView extends FrameLayout implements
     private SimpleExoPlayer player;
     private DefaultTrackSelector trackSelector;
     private boolean playerNeedsSource;
+    private FrameworkMediaDrm mediaDrm;
 
     private int resumeWindow;
     private long resumePosition;
@@ -157,6 +161,7 @@ class ReactExoplayerView extends FrameLayout implements
     private UUID drmUUID = null;
     private String drmLicenseUrl = null;
     private String[] drmLicenseHeader = null;
+    private String drmOfflineKeySetIdStr = null;
     private boolean controls;
     // \ End props
 
@@ -438,7 +443,7 @@ class ReactExoplayerView extends FrameLayout implements
                     if (self.drmUUID != null) {
                         try {
                             drmSessionManager = buildDrmSessionManager(self.drmUUID, self.drmLicenseUrl,
-                                    self.drmLicenseHeader);
+                                    self.drmLicenseHeader, self.drmOfflineKeySetIdStr);
                         } catch (UnsupportedDrmException e) {
                             int errorStringId = Util.SDK_INT < 18 ? R.string.error_drm_not_supported
                                     : (e.reason == UnsupportedDrmException.REASON_UNSUPPORTED_SCHEME
@@ -495,7 +500,8 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private DrmSessionManager<FrameworkMediaCrypto> buildDrmSessionManager(UUID uuid,
-                                                                           String licenseUrl, String[] keyRequestPropertiesArray) throws UnsupportedDrmException {
+                            String licenseUrl, String[] keyRequestPropertiesArray,
+                            String drmOfflineKeySetIdStr) throws UnsupportedDrmException {
         if (Util.SDK_INT < 18) {
             return null;
         }
@@ -507,8 +513,22 @@ class ReactExoplayerView extends FrameLayout implements
                         keyRequestPropertiesArray[i + 1]);
             }
         }
-        return new DefaultDrmSessionManager<>(uuid,
-                FrameworkMediaDrm.newInstance(uuid), drmCallback, null, false, 3);
+
+        releaseMediaDrm();
+        mediaDrm = FrameworkMediaDrm.newInstance(uuid);
+        DefaultDrmSessionManager<FrameworkMediaCrypto> drmSessionManager;
+        drmSessionManager = new DefaultDrmSessionManager<>(uuid,
+                mediaDrm, drmCallback, null, false, 3);
+
+        if (drmOfflineKeySetIdStr != null) {
+            byte[] offlineAssetKeyId = Base64.decode(drmOfflineKeySetIdStr, Base64.DEFAULT);
+            if ((offlineAssetKeyId != null) && (offlineAssetKeyId.length > 0)) {
+                drmSessionManager.setMode(DefaultDrmSessionManager.MODE_QUERY, offlineAssetKeyId);
+                return drmSessionManager;
+            }
+        }
+
+        return drmSessionManager;
     }
 
     private MediaSource buildMediaSource(Uri uri, String overrideExtension) {
@@ -586,6 +606,14 @@ class ReactExoplayerView extends FrameLayout implements
         themedReactContext.removeLifecycleEventListener(this);
         audioBecomingNoisyReceiver.removeListener();
         bandwidthMeter.removeEventListener(this);
+        releaseMediaDrm();
+    }
+
+    private void releaseMediaDrm() {
+        if (mediaDrm != null) {
+            mediaDrm.release();
+            mediaDrm = null;
+        }
     }
 
     private boolean requestAudioFocus() {
@@ -969,15 +997,23 @@ class ReactExoplayerView extends FrameLayout implements
                     errorString = getResources().getString(R.string.error_instantiating_decoder,
                             decoderInitializationException.decoderName);
                 }
+            } else if (cause instanceof android.media.MediaCodec.CryptoException) {
+                ex = null;
+                errorString = getResources().getString(R.string.crypto_exception);
             }
         }
         else if (e.type == ExoPlaybackException.TYPE_SOURCE) {
             ex = e.getSourceException();
             errorString = getResources().getString(R.string.unrecognized_media_format);
         }
+        
         if (errorString != null) {
             eventEmitter.error(errorString, ex);
+        } else {
+            errorString = "Unknown exception: " + getStackTrace(e) ;
+            eventEmitter.error("Unknown exception", null);
         }
+
         playerNeedsSource = true;
         if (isBehindLiveWindow(e)) {
             clearResumePosition();
@@ -985,6 +1021,12 @@ class ReactExoplayerView extends FrameLayout implements
         } else {
             updateResumePosition();
         }
+    }
+
+    private String getStackTrace(Throwable t) {
+        StringWriter sw = new StringWriter();
+        t.printStackTrace(new PrintWriter(sw));
+        return sw.toString();
     }
 
     private static boolean isBehindLiveWindow(ExoPlaybackException e) {
@@ -1359,6 +1401,9 @@ class ReactExoplayerView extends FrameLayout implements
         this.drmLicenseHeader = header;
     }
 
+    public void setDrmOfflineKeySetIdStr(String offlineKeySetIdStr){
+        this.drmOfflineKeySetIdStr = offlineKeySetIdStr;
+    }
 
     @Override
     public void onDrmKeysLoaded() {
