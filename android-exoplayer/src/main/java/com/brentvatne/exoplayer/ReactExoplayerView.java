@@ -50,6 +50,7 @@ import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer;
 import com.google.android.exoplayer2.mediacodec.MediaCodecUtil;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.MetadataOutput;
+import com.google.android.exoplayer2.offline.StreamKey;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.MergingMediaSource;
@@ -58,7 +59,15 @@ import com.google.android.exoplayer2.source.SingleSampleMediaSource;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
+import com.google.android.exoplayer2.source.dash.DashSegmentIndex;
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
+import com.google.android.exoplayer2.source.dash.manifest.AdaptationSet;
+import com.google.android.exoplayer2.source.dash.manifest.DashManifest;
+import com.google.android.exoplayer2.source.dash.manifest.DashManifestParser;
+import com.google.android.exoplayer2.source.dash.manifest.Period;
+import com.google.android.exoplayer2.source.dash.manifest.RangedUri;
+import com.google.android.exoplayer2.source.dash.manifest.Representation;
+import com.google.android.exoplayer2.source.dash.manifest.SegmentBase;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource;
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
@@ -75,6 +84,8 @@ import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Util;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -531,6 +542,90 @@ class ReactExoplayerView extends FrameLayout implements
         return drmSessionManager;
     }
 
+    /*private DashManifest createDashManifestForOfflineFile(Uri uri) {
+        DashManifestParser dashManifestParser = new DashManifestParser();
+        AdaptationSet audioAdaptationSet = null;
+        AdaptationSet videoAdaptationSet = null;
+        Representation audioRepresentation = null;
+        Representation videoRepresentation = null;
+        Representation singleSegmentAudioRepresentation = null;
+        Representation singleSegmentVideoRepresentation = null;
+
+        DashManifest oldDashManifest = null;
+
+        DashManifest newDashManifest = null;
+        Representation.SingleSegmentRepresentation newAudioRepresentation = null;
+        Representation.SingleSegmentRepresentation newVideoRepresentation = null;
+
+        try {
+            String uriStr = uri.toString();
+            String filePath = uriStr.substring("file://".length());
+            File file = new File(filePath);
+            FileInputStream fileInputStream = new FileInputStream(file);
+
+            oldDashManifest = dashManifestParser.parse(uri, fileInputStream);
+            Period period = oldDashManifest.getPeriod(0);
+            if (period == null) {
+                System.out.println("Dashmanifest: period is null");
+                return null;
+            }
+
+            int numOfAdaptationSets = period.adaptationSets.size();
+            if (numOfAdaptationSets != 2) {
+                System.out.println("Dashmanifest: numOfAdaptationSets is not 2, value is " + numOfAdaptationSets);
+                return null;
+            }
+
+            for (AdaptationSet adaptationSet : period.adaptationSets) {
+                if ((adaptationSet.type == C.TRACK_TYPE_AUDIO)
+                && (audioRepresentation == null)) {
+                    audioAdaptationSet = adaptationSet;
+
+                    for (Representation representation : adaptationSet.representations) {
+                        audioRepresentation = representation;
+                        break;
+                    }
+                }
+
+                if ((adaptationSet.type == C.TRACK_TYPE_VIDEO)
+                && (videoRepresentation == null)) {
+                    videoAdaptationSet = adaptationSet;
+
+                    for (Representation representation : adaptationSet.representations) {
+                        videoRepresentation = representation;
+                        break;
+                    }
+                }
+            }
+
+            if ((videoRepresentation == null) && (audioRepresentation == null)) {
+                System.out.println("Dashmanifest: No audio/video representation found");
+                return null;
+            }
+
+            if ((audioRepresentation != null)
+                && (!(audioRepresentation instanceof Representation.SingleSegmentRepresentation))) {
+                System.out.println("Dashmanifest: Audio Representation is not single segment");
+                return null;
+            }
+
+            if ((videoRepresentation != null)
+                    && (!(videoRepresentation instanceof Representation.SingleSegmentRepresentation))) {
+                System.out.println("Dashmanifest: Video Representation is not single segment");
+                return null;
+            }
+
+            singleSegmentAudioRepresentation = (Representation.SingleSegmentRepresentation)audioRepresentation;
+            singleSegmentVideoRepresentation = (Representation.SingleSegmentRepresentation)videoRepresentation;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+
+        return oldDashManifest;
+    }*/
+
     private MediaSource buildMediaSource(Uri uri, String overrideExtension) {
         int type = Util.inferContentType(!TextUtils.isEmpty(overrideExtension) ? "." + overrideExtension
                 : uri.getLastPathSegment());
@@ -543,6 +638,18 @@ class ReactExoplayerView extends FrameLayout implements
                         config.buildLoadErrorHandlingPolicy(minLoadRetryCount)
                 ).createMediaSource(uri);
             case C.TYPE_DASH:
+                /*if (uri.toString().indexOf("file://") == 0) {
+                    DashManifest dashManifest = createDashManifestForOfflineFile(uri);
+                    if (dashManifest == null) {
+                        throw new IllegalStateException("Invalid Manifest for " + type);
+                    }
+                    return new DashMediaSource.Factory(
+                            new DefaultDashChunkSource.Factory(mediaDataSourceFactory),
+                            buildDataSourceFactory(false)
+                    ).setLoadErrorHandlingPolicy(
+                            config.buildLoadErrorHandlingPolicy(minLoadRetryCount)
+                    ).createMediaSource(dashManifest);
+                } else {*/
                 return new DashMediaSource.Factory(
                         new DefaultDashChunkSource.Factory(mediaDataSourceFactory),
                         buildDataSourceFactory(false)
