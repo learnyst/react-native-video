@@ -233,7 +233,13 @@ class VideoEventEmitter {
     void error(String errorString, Exception exception) {
         WritableMap error = Arguments.createMap();
         error.putString(EVENT_PROP_ERROR_STRING, errorString);
-        error.putString(EVENT_PROP_ERROR_EXCEPTION, exception.toString());
+
+        /* sridhar start */
+        if (exception != null) {
+            error.putString(EVENT_PROP_ERROR_EXCEPTION, exception.getMessage());    
+        }
+        /* sridhar end */
+
         WritableMap event = Arguments.createMap();
         event.putMap(EVENT_PROP_ERROR, error);
         receiveEvent(EVENT_ERROR, event);

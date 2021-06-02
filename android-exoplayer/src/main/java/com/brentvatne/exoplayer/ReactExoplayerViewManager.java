@@ -35,6 +35,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_DRM = "drm";
     private static final String PROP_DRM_TYPE = "type";
     private static final String PROP_DRM_LICENSESERVER = "licenseServer";
+    private static final String PROP_DRM_OFFLINE_KEY_ID = "offlineKeyId"; //Sridhar
     private static final String PROP_DRM_HEADERS = "headers";
     private static final String PROP_SRC_HEADERS = "requestHeaders";
     private static final String PROP_RESIZE_MODE = "resizeMode";
@@ -116,10 +117,12 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
         if (drm != null && drm.hasKey(PROP_DRM_TYPE)) {
             String drmType = drm.hasKey(PROP_DRM_TYPE) ? drm.getString(PROP_DRM_TYPE) : null;
             String drmLicenseServer = drm.hasKey(PROP_DRM_LICENSESERVER) ? drm.getString(PROP_DRM_LICENSESERVER) : null;
+            String drmOfflineKeySetIdStr = drm.hasKey(PROP_DRM_OFFLINE_KEY_ID) ? drm.getString(PROP_DRM_OFFLINE_KEY_ID) : null; //sridhar
             ReadableMap drmHeaders = drm.hasKey(PROP_DRM_HEADERS) ? drm.getMap(PROP_DRM_HEADERS) : null;
             if (drmType != null && drmLicenseServer != null && Util.getDrmUuid(drmType) != null) {
                 UUID drmUUID = Util.getDrmUuid(drmType);
                 videoView.setDrmType(drmUUID);
+                videoView.setDrmOfflineKeySetIdStr(drmOfflineKeySetIdStr);  //sridhar
                 videoView.setDrmLicenseUrl(drmLicenseServer);
                 if (drmHeaders != null) {
                     ArrayList<String> drmKeyRequestPropertiesList = new ArrayList<>();
