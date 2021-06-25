@@ -39,7 +39,9 @@ static int const RCTVideoUnset = -1;
   /* DRM */
   NSDictionary *_drm;
   AVAssetResourceLoadingRequest *_loadingRequest;
-  
+  AVContentKeySession *_contentKeySession; //Sridhar
+  NSString *_fpsKeyPath; //Sridhar
+
   /* Required to publish events */
   RCTEventDispatcher *_eventDispatcher;
   BOOL _playbackRateObserverRegistered;
@@ -97,7 +99,7 @@ static int const RCTVideoUnset = -1;
 {
   if ((self = [super init])) {
     _eventDispatcher = eventDispatcher;
-	  _automaticallyWaitsToMinimizeStalling = YES;
+    _automaticallyWaitsToMinimizeStalling = YES;
     _playbackRateObserverRegistered = NO;
     _isExternalPlaybackActiveObserverRegistered = NO;
     _playbackStalled = NO;
@@ -543,10 +545,33 @@ static int const RCTVideoUnset = -1;
   _requestingCertificate = NO;
   _requestingCertificateErrored = NO;
   // End Reset _loadingRequest
+    
+  //Sridhar - start
   if (self->_drm != nil) {
-    dispatch_queue_t queue = dispatch_queue_create("assetQueue", nil);
-    [asset.resourceLoader setDelegate:self queue:queue];
+    _fpsKeyPath = (NSString *)[self->_drm objectForKey:@"fpsKeyPath"];
+    if (_fpsKeyPath != nil) {
+      NSFileManager *fileManager = [NSFileManager defaultManager];
+      if ([fileManager fileExistsAtPath:_fpsKeyPath]){
+          if (@available(iOS 11.3, *)) {
+              _contentKeySession = [AVContentKeySession contentKeySessionWithKeySystem:AVContentKeySystemFairPlayStreaming];
+              [_contentKeySession setDelegate:self queue:dispatch_get_main_queue()];
+              [_contentKeySession processContentKeyRequestWithIdentifier:@"skd://fcabef00-0000-0000-0110-750100077370:7465737420636f6e74656e7420696422" initializationData:nil options:nil];
+              [_contentKeySession addContentKeyRecipient:asset];
+              asset.resourceLoader.preloadsEligibleContentKeys = true;
+          } else {
+              dispatch_queue_t queue = dispatch_queue_create("assetQueue", nil);
+              [asset.resourceLoader setDelegate:self queue:queue];
+          }
+      } else {
+          dispatch_queue_t queue = dispatch_queue_create("assetQueue", nil);
+          [asset.resourceLoader setDelegate:self queue:queue];
+      }
+    } else {
+        dispatch_queue_t queue = dispatch_queue_create("assetQueue", nil);
+        [asset.resourceLoader setDelegate:self queue:queue];
+    }
   }
+  //Sridhar - end
   
   [self playerItemPrepareText:asset assetOptions:assetOptions withCallback:handler];
 }
@@ -1053,8 +1078,8 @@ static int const RCTVideoUnset = -1;
 
 - (void)setAutomaticallyWaitsToMinimizeStalling:(BOOL)waits
 {
-	_automaticallyWaitsToMinimizeStalling = waits;
-	_player.automaticallyWaitsToMinimizeStalling = waits;
+  _automaticallyWaitsToMinimizeStalling = waits;
+  _player.automaticallyWaitsToMinimizeStalling = waits;
 }
 
 
@@ -1756,6 +1781,30 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
   NSLog(@"didCancelLoadingRequest");
 }
 
+//Sridhar - start
+#pragma mark - AVContentKeySessionDelegate
+- (void)contentKeySession:(nonnull AVContentKeySession *)session didProvideContentKeyRequest:(nonnull AVContentKeyRequest *)keyRequest  API_AVAILABLE(ios(11.3)){
+    NSLog(@"contentKeySession: didProvideContentKeyRequest");
+    NSError *error = nil;
+    [keyRequest respondByRequestingPersistableContentKeyRequestAndReturnError: &error];
+}
+
+- (void)contentKeySession:(nonnull AVContentKeySession *)session didProvidePersistableContentKeyRequest:(nonnull AVPersistableContentKeyRequest *)keyRequest  API_AVAILABLE(ios(11.3)){
+    NSLog(@"contentKeySession: didProvidePersistableContentKeyRequest");
+    NSData *keyData = [NSData dataWithContentsOfFile: _fpsKeyPath];
+    AVContentKeyResponse *keyResponse = [AVContentKeyResponse contentKeyResponseWithFairPlayStreamingKeyResponseData: keyData];
+    [keyRequest processContentKeyResponse:keyResponse];
+}
+
+- (void)contentKeySession:(nonnull AVContentKeySession *)session contentKeyRequest:(nonnull AVContentKeyRequest *)keyRequest didFailWithError:(nonnull NSError *)err  API_AVAILABLE(ios(11.3)){
+    NSLog(@"contentKeySession: didFailWithError");
+}
+
+- (void)contentKeySession:(nonnull AVContentKeySession *)session contentKeyRequestDidSucceed:(nonnull AVContentKeyRequest *)keyRequest  API_AVAILABLE(ios(11.3)){
+    NSLog(@"contentKeySession: contentKeyRequestDidSucceed");
+}
+//Sridhar - end
+
 - (BOOL)loadingRequestHandling:(AVAssetResourceLoadingRequest *)loadingRequest {
   if (self->_requestingCertificate) {
     return YES;
@@ -1782,7 +1831,8 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
           NSData *certificateData = [NSData dataWithContentsOfURL:certificateURL];
           if ([self->_drm objectForKey:@"base64Certificate"]) {
-            certificateData = [[NSData alloc] initWithBase64EncodedData:certificateData options:NSDataBase64DecodingIgnoreUnknownCharacters];
+            //Sridhar commented. Always above condition is becoming true even when the passed value from js is false
+            //certificateData = [[NSData alloc] initWithBase64EncodedData:certificateData options:NSDataBase64DecodingIgnoreUnknownCharacters];
           }
           
           if (certificateData != nil) {
