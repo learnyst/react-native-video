@@ -549,13 +549,14 @@ static int const RCTVideoUnset = -1;
   //Sridhar - start
   if (self->_drm != nil) {
     _fpsKeyPath = (NSString *)[self->_drm objectForKey:@"fpsKeyPath"];
+    NSString* contentIdStr = (NSString *)[self->_drm objectForKey:@"contentId"];
     if (_fpsKeyPath != nil) {
       NSFileManager *fileManager = [NSFileManager defaultManager];
       if ([fileManager fileExistsAtPath:_fpsKeyPath]){
           if (@available(iOS 11.3, *)) {
               _contentKeySession = [AVContentKeySession contentKeySessionWithKeySystem:AVContentKeySystemFairPlayStreaming];
               [_contentKeySession setDelegate:self queue:dispatch_get_main_queue()];
-              [_contentKeySession processContentKeyRequestWithIdentifier:@"skd://fcabef00-0000-0000-0110-750100077370:7465737420636f6e74656e7420696422" initializationData:nil options:nil];
+              [_contentKeySession processContentKeyRequestWithIdentifier:contentIdStr initializationData:nil options:nil];
               [_contentKeySession addContentKeyRecipient:asset];
               asset.resourceLoader.preloadsEligibleContentKeys = true;
           } else {
@@ -1817,7 +1818,8 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
     NSString *contentId;
     NSString *contentIdOverride = (NSString *)[self->_drm objectForKey:@"contentId"];
     if (contentIdOverride != nil) {
-      contentId = contentIdOverride;
+      //Sridhar modified
+      contentId = [contentIdOverride stringByReplacingOccurrencesOfString:@"skd://" withString:@""];
     } else if (self.onGetLicense) {
       contentId = url.host;
     } else {
